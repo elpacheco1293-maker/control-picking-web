@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control & Picking System - Cloud Edition</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SheetJS (XLSX) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chart.js DataLabels Plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen font-sans">
+
+    <!-- BARRA NAVEGACIÓN -->
+    <header class="bg-gray-800 border-b border-gray-700 sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 flex justify-between items-center h-16">
+            <h1 class="text-xl font-bold text-indigo-400 flex items-center gap-2">
+                <i class="fa-solid fa-boxes-stacked"></i> Control & Picking System
+            </h1>
+            <nav class="flex space-x-1 overflow-x-auto text-sm">
+                <button onclick="switchTab('tab1')" id="btn-tab1" class="tab-btn px-3 py-2 rounded-md font-medium text-gray-300 hover:bg-gray-700 hover:text-white">BD 1 (Maestro)</button>
+                <button onclick="switchTab('tab2')" id="btn-tab2" class="tab-btn px-3 py-2 rounded-md font-medium text-gray-300 hover:bg-gray-700 hover:text-white">BD 2 (Operaciones)</button>
+                <button onclick="switchTab('tab3')" id="btn-tab3" class="tab-btn px-3 py-2 rounded-md font-medium text-gray-300 hover:bg-gray-700 hover:text-white">Paso 1: Registro</button>
+                <button onclick="switchTab('tab4')" id="btn-tab4" class="tab-btn px-3 py-2 rounded-md font-medium text-gray-300 hover:bg-gray-700 hover:text-white">Paso 2: Diferencias</button>
+                <button onclick="switchTab('tab5')" id="btn-tab5" class="tab-btn px-3 py-2 rounded-md font-medium text-gray-300 hover:bg-gray-700 hover:text-white">Historial</button>
+                <button onclick="switchTab('tab6')" id="btn-tab6" class="tab-btn px-3 py-2 rounded-md font-medium text-gray-300 hover:bg-gray-700 hover:text-white">Dashboard</button>
+            </nav>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto p-4 md:p-6">
+
+        <!-- PESTAÑA 1: BASE DE DATOS 1 -->
+        <section id="tab1" class="tab-content hidden space-y-4">
+            <div class="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-lg">
+                <h2 class="text-lg font-semibold text-indigo-300 mb-2">Pestaña 1: Base de Datos 1 (Maestro de Productos)</h2>
+                <p class="text-xs text-gray-400 mb-4">Carga continuada de archivos Excel. Los registros nuevos se <b>acumulan/actualizan</b> sobre los existentes.</p>
+                <div class="flex items-center gap-4">
+                    <input type="file" id="fileBD1" accept=".xlsx, .xls, .csv" class="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 cursor-pointer"/>
+                    <button onclick="clearBD('BD1')" class="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-xs whitespace-nowrap">Vaciar BD1</button>
+                </div>
+                <div id="statBD1" class="mt-2 text-xs font-semibold"></div>
+            </div>
+            <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-x-auto max-h-96">
+                <table class="w-full text-left text-xs text-gray-300">
+                    <thead class="bg-gray-700 text-gray-100 uppercase sticky top-0">
+                        <tr>
+                            <th class="p-3">Código</th>
+                            <th class="p-3">Descripción</th>
+                            <th class="p-3">Unidad Medida</th>
+                            <th class="p-3">Costo Unitario</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBD1Body" class="divide-y divide-gray-700"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- PESTAÑA 2: BASE DE DATOS 2 -->
+        <section id="tab2" class="tab-content hidden space-y-4">
+            <div class="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-lg">
+                <h2 class="text-lg font-semibold text-indigo-300 mb-2">Pestaña 2: Base de Datos 2 (Información Operativa)</h2>
+                <p class="text-xs text-gray-400 mb-4">Carga continuada de picking. La información se irá alimentando acumulativamente.</p>
+                <div class="flex items-center gap-4">
+                    <input type="file" id="fileBD2" accept=".xlsx, .xls, .csv" class="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 cursor-pointer"/>
+                    <button onclick="clearBD('BD2')" class="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-xs whitespace-nowrap">Vaciar BD2</button>
+                </div>
+                <div id="statBD2" class="mt-2 text-xs font-semibold"></div>
+            </div>
+            <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-x-auto max-h-96">
+                <table class="w-full text-left text-xs text-gray-300">
+                    <thead class="bg-gray-700 text-gray-100 uppercase sticky top-0">
+                        <tr>
+                            <th class="p-3">Nro Carga (OSB)</th>
+                            <th class="p-3">Nro LPN (OCB)</th>
+                            <th class="p-3">Código</th>
+                            <th class="p-3">Descripción</th>
+                            <th class="p-3">Bodega</th>
+                            <th class="p-3">Cant. Enviada</th>
+                            <th class="p-3">Ubicación</th>
+                            <th class="p-3">Usuario</th>
+                            <th class="p-3">Fecha</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBD2Body" class="divide-y divide-gray-700"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- PESTAÑA 3: REGISTRO PASO 1 -->
+        <section id="tab3" class="tab-content hidden space-y-4">
+            <div class="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-lg">
+                <h2 class="text-lg font-semibold text-indigo-300 mb-4">Pestaña 3: Registro Inicial (Auto-completado)</h2>
+                <form id="formPaso1" onsubmit="guardarPaso1(event)" class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    <div>
+                        <label class="block text-gray-400 mb-1">Criterio de Búsqueda</label>
+                        <select id="regBusquedaTipo" class="w-full bg-gray-700 border border-gray-600 rounded p-2 text-white">
+                            <option value="CARGA">Nro Carga (OSB)</option>
+                            <option value="LPN">Nro LPN (OCB)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-gray-400 mb-1">Nro Carga / LPN</label>
+                        <input type="text" id="regCargaLPN" oninput="autocompletarPaso1()" required placeholder="Ej: OSB1001 u OCB2001" class="w-full bg-gray-700 border border-gray-600 rounded p-2 text-white uppercase"/>
+                    </div>
+                    <div>
+                        <label class="block text-gray-400 mb-1">Código de Producto</label>
+                        <input type="text" id="regCodigo" oninput="autocompletarPaso1()" required placeholder="Ej: PROD01" class="w-full bg-gray-700 border border-gray-600 rounded p-2 text-white uppercase"/>
+                    </div>
+
+                    <div>
+                        <label class="block text-gray-500 mb-1">Descripción</label>
+                        <input type="text" id="regDesc" readonly class="w-full bg-gray-900 border border-gray-800 rounded p-2 text-gray-400"/>
+                    </div>
+                    <div>
+                        <label class="block text-gray-500 mb-1">Cantidad Enviada</label>
+                        <input type="number" id="regCantEnviada" readonly class="w-full bg-gray-900 border border-gray-800 rounded p-2 text-gray-400"/>
+                    </div>
+                    <div>
+                        <label class="block text-gray-500 mb-1">Bodega</label>
+                        <input type="text" id="regBodega" readonly class="w-full bg-gray-900 border border-gray-800 rounded p-2 text-gray-400"/>
+                    </div>
+                    <div>
+                        <label class="block text-gray-500 mb-1">Ubicación Picking</label>
+                        <input type="text" id="regUbicacion" readonly class="w-full bg-gray-900 border border-gray-800 rounded p-2 text-gray-400"/>
+                    </div>
+                    <div>
+                        <label class="block text-gray-500 mb-1">Usuario Picking</label>
+                        <input type="text" id="regUsuario" readonly class="w-full bg-gray-900 border border-gray-800 rounded p-2 text-gray-400"/>
+                    </div>
+                    <div>
+                        <label class="block text-gray-500 mb-1">Fecha Picking</label>
+                        <input type="text" id="regFecha" readonly class="w-full bg-gray-900 border border-gray-800 rounded p-2 text-gray-400"/>
+                    </div>
+
+                    <div class="md:col-span-3 flex justify-end">
+                        <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-6 py-2 rounded shadow">
+                            Pasar a Registro 2 <i class="fa-solid fa-arrow-right ml-1"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <!-- PESTAÑA 4: REGISTRO PASO 2 -->
+        <section id="tab4" class="tab-content hidden space-y-4">
+            <div class="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-lg flex justify-between items-center">
+                <h2 class="text-lg font-semibold text-indigo-300">Pestaña 4: Cálculo de Diferencias y Cierre de Dirca</h2>
+                <button onclick="exportarExcelPaso2()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded text-xs font-semibold flex items-center gap-2">
+                    <i class="fa-solid fa-file-excel"></i> Exportar Datos Activos (Hasta Dirca)
+                </button>
+            </div>
+            <div class="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-lg overflow-x-auto">
+                <table class="w-full text-left text-xs text-gray-300">
+                    <thead class="bg-gray-700 text-gray-100 uppercase">
+                        <tr>
+                            <th class="p-2">Código</th>
+                            <th class="p-2">Carga/LPN</th>
+                            <th class="p-2">Cant. Dif</th>
+                            <th class="p-2">Costo Unit.</th>
+                            <th class="p-2">Costo Parcial</th>
+                            <th class="p-2">U.M.</th>
+                            <th class="p-2">Tipo Diferencia</th>
+                            <th class="p-2">Nro Dirca</th>
+                            <th class="p-2">Error Picking? (Auto a Historial)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablePaso2Body" class="divide-y divide-gray-700"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- PESTAÑA 5: HISTORIAL GENERAL -->
+        <section id="tab5" class="tab-content hidden space-y-4">
+            <div class="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-lg flex justify-between items-center">
+                <h2 class="text-lg font-semibold text-indigo-300">Pestaña 5: Historial Consolidado</h2>
+                <button onclick="exportarExcelHistorial()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded text-xs font-semibold flex items-center gap-2">
+                    <i class="fa-solid fa-file-excel"></i> Exportar Historial a Excel
+                </button>
+            </div>
+            <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-x-auto">
+                <table class="w-full text-left text-xs text-gray-300">
+                    <thead class="bg-gray-700 text-gray-100 uppercase sticky top-0">
+                        <tr>
+                            <th class="p-2">Código</th>
+                            <th class="p-2">Carga/LPN</th>
+                            <th class="p-2">Bodega</th>
+                            <th class="p-2">Ubicación</th>
+                            <th class="p-2">Usuario</th>
+                            <th class="p-2">Cant. Dif</th>
+                            <th class="p-2">Costo Unit.</th>
+                            <th class="p-2">Costo Total</th>
+                            <th class="p-2">U.M.</th>
+                            <th class="p-2">Tipo</th>
+                            <th class="p-2">Nro Dirca</th>
+                            <th class="p-2">Error</th>
+                            <th class="p-2 text-center">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableHistorialBody" class="divide-y divide-gray-700"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- PESTAÑA 6: DASHBOARD -->
+        <section id="tab6" class="tab-content hidden space-y-6">
+            <div class="bg-gray-800 p-4 rounded-lg border border-gray-700 flex justify-between items-center">
+                <h2 class="text-lg font-semibold text-indigo-300">Pestaña 6: Dashboard Ejecutivo de Indicadores</h2>
+                <div class="flex items-center gap-2">
+                    <label class="text-xs text-gray-400">Filtro Error de Picking:</label>
+                    <select id="dashFiltroError" onchange="renderDashboard()" class="bg-gray-700 border border-gray-600 rounded p-1 text-xs text-white">
+                        <option value="TODOS">Todos</option>
+                        <option value="SI" selected>Solo SI (Con Error)</option>
+                        <option value="NO">Solo NO (Sin Error)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-gray-800 p-4 rounded-lg border border-gray-700 shadow">
+                    <h3 class="text-sm font-semibold text-gray-300 mb-3"><i class="fa-solid fa-users text-indigo-400"></i> Errores por Usuario (Picking)</h3>
+                    <div class="h-64"><canvas id="chartUsuarios"></canvas></div>
+                </div>
+                <div class="bg-gray-800 p-4 rounded-lg border border-gray-700 shadow">
+                    <h3 class="text-sm font-semibold text-gray-300 mb-3"><i class="fa-solid fa-warehouse text-emerald-400"></i> Top Bodegas con Más Registros</h3>
+                    <div class="h-64"><canvas id="chartBodegas"></canvas></div>
+                </div>
+                <div class="bg-gray-800 p-4 rounded-lg border border-gray-700 shadow">
+                    <h3 class="text-sm font-semibold text-gray-300 mb-3"><i class="fa-solid fa-location-dot text-amber-400"></i> Top Registros por Ubicación (Prefijo)</h3>
+                    <div class="h-64"><canvas id="chartUbicaciones"></canvas></div>
+                </div>
+                <div class="bg-gray-800 p-4 rounded-lg border border-gray-700 shadow">
+                    <h3 class="text-sm font-semibold text-gray-300 mb-3"><i class="fa-solid fa-file-invoice-dollar text-rose-400"></i> Top Costo por Producto (Positivos vs Negativos)</h3>
+                    <div class="h-64"><canvas id="chartCostos"></canvas></div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- MODAL DE EDICIÓN PARA HISTORIAL -->
+    <div id="modalEditHistorial" class="fixed inset-0 bg-black/70 hidden flex items-center justify-center z-50 p-4">
+        <div class="bg-gray-800 rounded-lg border border-gray-700 p-6 max-w-xl w-full text-sm space-y-4">
+            <h3 class="text-lg font-bold text-indigo-400 border-b border-gray-700 pb-2">Modificar Registro de Historial</h3>
+            <input type="hidden" id="editHistIndex"/>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs text-gray-400">Código</label>
+                    <input type="text" id="editCodigo" class="w-full bg-gray-700 rounded p-1.5 text-white border border-gray-600"/>
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400">Carga / LPN</label>
+                    <input type="text" id="editDocumento" class="w-full bg-gray-700 rounded p-1.5 text-white border border-gray-600"/>
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400">Bodega</label>
+                    <input type="text" id="editBodega" class="w-full bg-gray-700 rounded p-1.5 text-white border border-gray-600"/>
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400">Ubicación</label>
+                    <input type="text" id="editUbicacion" class="w-full bg-gray-700 rounded p-1.5 text-white border border-gray-600"/>
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400">Usuario Picking</label>
+                    <input type="text" id="editUsuario" class="w-full bg-gray-700 rounded p-1.5 text-white border border-gray-600"/>
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400">Cantidad Diferencia</label>
+                    <input type="number" id="editCantDif" class="w-full bg-gray-700 rounded p-1.5 text-white border border-gray-600"/>
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400">Costo Unitario</label>
+                    <input type="number" step="0.01" id="editCostoUnit" class="w-full bg-gray-700 rounded p-1.5 text-white border border-gray-600"/>
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400">Tipo Diferencia</label>
+                    <select id="editTipoDif" class="w-full bg-gray-700 rounded p-1.5 text-white border border-gray-600">
+                        <option value="Sobrante">Sobrante</option>
+                        <option value="Faltante">Faltante</option>
+                        <option value="Cruce Sobrante">Cruce Sobrante</option>
+                        <option value="Cruce Faltante">Cruce Faltante</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400">Nro Dirca</label>
+                    <input type="text" id="editNroDirca" class="w-full bg-gray-700 rounded p-1.5 text-white border border-gray-600"/>
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400">Error Picking</label>
+                    <select id="editErrorPicking" class="w-full bg-gray-700 rounded p-1.5 text-white border border-gray-600">
+                        <option value="SI">SI</option>
+                        <option value="NO">NO</option>
+                    </select>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 pt-2 border-t border-gray-700">
+                <button onclick="closeEditModal()" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded text-xs font-semibold">Cancelar</button>
+                <button onclick="guardarEdicionHistorial()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-xs font-semibold">Guardar Cambios</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        Chart.register(ChartDataLabels);
+
+        // CREDENCIALES AUTOMÁTICAS DE SUPABASE
+        const SUPABASE_URL = "https://mmzmtqeucjkdhxolgndj.supabase.co";
+        const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1tem10cWV1Y2prZGh4b2xnbmRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIzNzE5MzAsImV4cCI6MjEwNzk0NzkzMH0.smAUXMyQ2OZSMfX4R_XVmsQOgVihxzhT28aymxNQ6dM";
+
+        let bd1Map = new Map(); 
+        let bd2MapCarga = new Map(); 
+        let bd2MapLPN = new Map();   
+
+        let listaPaso1 = [];
+        let listaHistorial = [];
+
+        let supabaseClient = null;
+
+        let chartUserInstance = null;
+        let chartBodegaInstance = null;
+        let chartUbiInstance = null;
+        let chartCostoInstance = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initSupabase();
+            switchTab('tab1');
+            setupFileLoaders();
+        });
+
+        function initSupabase() {
+            if (window.supabase) {
+                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+                cargarDatosDesdeSupabase();
+            }
+        }
+
+        async function cargarDatosDesdeSupabase() {
+            if (!supabaseClient) return;
+            
+            const { data: bd1 } = await supabaseClient.from('bd1_productos').select('*');
+            if (bd1) {
+                bd1.forEach(r => bd1Map.set(r.codigo, { descripcion: r.descripcion, unidadMedida: r.unidad_medida, costoUnitario: parseFloat(r.costo_unitario) }));
+                renderBD1Table();
+            }
+
+            const { data: bd2 } = await supabaseClient.from('bd2_operaciones').select('*');
+            if (bd2) {
+                bd2.forEach(r => {
+                    const rec = { nroCarga: r.nro_carga, nroLPN: r.nro_lpn, codigo: r.codigo, descripcion: r.descripcion, bodega: r.bodega, cantidadEnviada: parseFloat(r.cantidad_enviada), ubicacion: r.ubicacion, usuario: r.usuario, fecha: r.fecha };
+                    if (r.codigo && r.nro_carga) bd2MapCarga.set(`${r.codigo}_${r.nro_carga}`, rec);
+                    if (r.codigo && r.nro_lpn) bd2MapLPN.set(`${r.codigo}_${r.nro_lpn}`, rec);
+                });
+                renderBD2Table();
+            }
+
+            const { data: hist } = await supabaseClient.from('historial_picking').select('*');
+            if (hist) {
+                listaHistorial = hist.map(r => ({ id: r.id, codigo: r.codigo, documento: r.documento, tipoDoc: r.tipo_doc, descripcion: r.descripcion, cantEnviada: parseFloat(r.cant_enviada), bodega: r.bodega, ubicacion: r.ubicacion, usuario: r.usuario, fecha: r.fecha, cantDiferencia: parseFloat(r.cant_diferencia), costoUnitario: parseFloat(r.costo_unitario), costoParcial: parseFloat(r.costo_parcial), unidadMedida: r.unidad_medida, tipoDiferencia: r.tipo_diferencia, nroDirca: r.nro_dirca, errorPicking: r.error_picking }));
+                renderHistorial();
+            }
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('bg-indigo-600', 'text-white'));
+            
+            document.getElementById(tabId).classList.remove('hidden');
+            const activeBtn = document.getElementById('btn-' + tabId);
+            if(activeBtn) activeBtn.classList.add('bg-indigo-600', 'text-white');
+
+            if(tabId === 'tab4') renderPaso2();
+            if(tabId === 'tab5') renderHistorial();
+            if(tabId === 'tab6') renderDashboard();
+        }
+
+        function getVal(row, possibleKeys) {
+            const keys = Object.keys(row);
+            for (let pk of possibleKeys) {
+                const found = keys.find(k => k.trim().toLowerCase() === pk.toLowerCase() || k.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() === pk.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase());
+                if (found !== undefined) return row[found];
+            }
+            return '';
+        }
+
+        function formatearFechaExcel(excelDate) {
+            if (!excelDate) return '';
+            if (isNaN(excelDate)) return String(excelDate);
+            const num = Number(excelDate);
+            if (num > 30000 && num < 60000) {
+                const utc_days = Math.floor(num - 25569);
+                const utc_value = utc_days * 86400;
+                const date_info = new Date(utc_value * 1000);
+                const day = String(date_info.getUTCDate()).padStart(2, '0');
+                const month = String(date_info.getUTCMonth() + 1).padStart(2, '0');
+                const year = date_info.getUTCFullYear();
+                return `${day}/${month}/${year}`;
+            }
+            return String(excelDate);
+        }
+
+        function setupFileLoaders() {
+            document.getElementById('fileBD1').addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = async (evt) => {
+                    const workbook = XLSX.read(evt.target.result, { type: 'binary' });
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const data = XLSX.utils.sheet_to_json(sheet);
+
+                    let count = 0;
+                    let batchSupabase = [];
+                    data.forEach(row => {
+                        const codigo = String(getVal(row, ['Codigo', 'Código', 'CODIGO', 'Cod', 'CÓDIGO'])).trim().toUpperCase();
+                        const descripcion = String(getVal(row, ['Descripcion', 'Descripción', 'DESCRIPCION', 'DESCRIPCIÓN', 'Desc'])).trim();
+                        const unidadMedida = String(getVal(row, ['Unidad de medidad', 'Unidad de Medida', 'UNIDAD DE MEDIDA', 'UM', 'Unidad'])).trim();
+                        const costoUnitario = parseFloat(getVal(row, ['Costo unitario', 'Costo Unitario', 'COSTO UNITARIO', 'Costo', 'COSTO'])) || 0;
+
+                        if (codigo) {
+                            bd1Map.set(codigo, { descripcion, unidadMedida, costoUnitario });
+                            batchSupabase.push({ codigo, descripcion, unidad_medida: unidadMedida, costo_unitario: costoUnitario });
+                            count++;
+                        }
+                    });
+
+                    if (supabaseClient && batchSupabase.length > 0) {
+                        await supabaseClient.from('bd1_productos').upsert(batchSupabase);
+                    }
+
+                    document.getElementById('statBD1').innerHTML = `<span class="text-emerald-400">✔ ${count} registros acumulados/actualizados. Total en BD1: ${bd1Map.size}</span>`;
+                    renderBD1Table();
+                };
+                reader.readAsBinaryString(file);
+            });
+
+            document.getElementById('fileBD2').addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = async (evt) => {
+                    const workbook = XLSX.read(evt.target.result, { type: 'binary' });
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const data = XLSX.utils.sheet_to_json(sheet);
+
+                    let count = 0;
+                    let batchSupabase = [];
+                    data.forEach(row => {
+                        const nroCarga = String(getVal(row, ['Nro Carga', 'NRO CARGA', 'Carga', 'NroCarga'])).trim().toUpperCase();
+                        const nroLPN = String(getVal(row, ['Nro LPN', 'NRO LPN', 'LPN', 'NroLPN'])).trim().toUpperCase();
+                        const codigo = String(getVal(row, ['Codigo', 'Código', 'CODIGO', 'Cod'])).trim().toUpperCase();
+                        const rawFecha = getVal(row, ['Fecha Picking', 'FECHA PICKING', 'Fecha', 'FECHA']);
+                        const fecha = formatearFechaExcel(rawFecha);
+                        const descripcion = String(getVal(row, ['Descripcion', 'Descripción', 'DESCRIPCION', 'DESCRIPCIÓN'])).trim();
+                        const bodega = String(getVal(row, ['Bodega', 'BODEGA'])).trim();
+                        const cantidadEnviada = parseFloat(getVal(row, ['Cantidad enviada', 'CANTIDAD ENVIADA', 'Cant Enviada', 'Cantidad'])) || 0;
+                        const ubicacion = String(getVal(row, ['Ubicación Picking', 'Ubicacion Picking', 'UBICACION PICKING', 'Ubicación', 'Ubicacion'])).trim();
+                        const usuario = String(getVal(row, ['Usuario Picking', 'USUARIO PICKING', 'Usuario', 'USUARIO'])).trim();
+
+                        const record = { nroCarga, nroLPN, codigo, descripcion, bodega, cantidadEnviada, ubicacion, usuario, fecha };
+
+                        if (codigo && nroCarga) bd2MapCarga.set(`${codigo}_${nroCarga}`, record);
+                        if (codigo && nroLPN) bd2MapLPN.set(`${codigo}_${nroLPN}`, record);
+
+                        batchSupabase.push({ key_id: `${codigo}_${nroCarga || nroLPN}`, nro_carga: nroCarga, nro_lpn: nroLPN, codigo, descripcion, bodega, cantidad_enviada: cantidadEnviada, ubicacion, usuario, fecha });
+                        count++;
+                    });
+
+                    if (supabaseClient && batchSupabase.length > 0) {
+                        await supabaseClient.from('bd2_operaciones').upsert(batchSupabase, { onConflict: 'key_id' });
+                    }
+
+                    document.getElementById('statBD2').innerHTML = `<span class="text-emerald-400">✔ ${count} registros operacionales acumulados en BD2.</span>`;
+                    renderBD2Table();
+                };
+                reader.readAsBinaryString(file);
+            });
+        }
+
+        async function clearBD(type) {
+            if (confirm(`¿Está seguro de vaciar ${type}?`)) {
+                if(type === 'BD1') { 
+                    bd1Map.clear(); 
+                    if(supabaseClient) await supabaseClient.from('bd1_productos').delete().neq('codigo', '');
+                    renderBD1Table(); 
+                    document.getElementById('statBD1').innerText = ''; 
+                }
+                if(type === 'BD2') { 
+                    bd2MapCarga.clear(); bd2MapLPN.clear(); 
+                    if(supabaseClient) await supabaseClient.from('bd2_operaciones').delete().neq('id', 0);
+                    renderBD2Table(); 
+                    document.getElementById('statBD2').innerText = ''; 
+                }
+            }
+        }
+
+        function renderBD1Table() {
+            const tbody = document.getElementById('tableBD1Body');
+            tbody.innerHTML = '';
+            let rows = 0;
+            for (let [codigo, val] of bd1Map.entries()) {
+                if (rows++ > 50) break;
+                tbody.innerHTML += `<tr><td class="p-3">${codigo}</td><td class="p-3">${val.descripcion}</td><td class="p-3">${val.unidadMedida}</td><td class="p-3">$${val.costoUnitario.toFixed(2)}</td></tr>`;
+            }
+        }
+
+        function renderBD2Table() {
+            const tbody = document.getElementById('tableBD2Body');
+            tbody.innerHTML = '';
+            let rows = 0;
+            for (let [key, val] of bd2MapCarga.entries()) {
+                if (rows++ > 50) break;
+                tbody.innerHTML += `<tr><td class="p-3">${val.nroCarga}</td><td class="p-3">${val.nroLPN}</td><td class="p-3">${val.codigo}</td><td class="p-3">${val.descripcion}</td><td class="p-3">${val.bodega}</td><td class="p-3">${val.cantidadEnviada}</td><td class="p-3">${val.ubicacion}</td><td class="p-3">${val.usuario}</td><td class="p-3">${val.fecha}</td></tr>`;
+            }
+        }
+
+        function autocompletarPaso1() {
+            const tipoBusqueda = document.getElementById('regBusquedaTipo').value;
+            const docId = document.getElementById('regCargaLPN').value.trim().toUpperCase();
+            const codigo = document.getElementById('regCodigo').value.trim().toUpperCase();
+
+            if (!docId || !codigo) return;
+
+            const key = `${codigo}_${docId}`;
+            let match = (tipoBusqueda === 'CARGA') ? bd2MapCarga.get(key) : bd2MapLPN.get(key);
+
+            if (match) {
+                document.getElementById('regDesc').value = match.descripcion;
+                document.getElementById('regCantEnviada').value = match.cantidadEnviada;
+                document.getElementById('regBodega').value = match.bodega;
+                document.getElementById('regUbicacion').value = match.ubicacion;
+                document.getElementById('regUsuario').value = match.usuario;
+                document.getElementById('regFecha').value = match.fecha;
+            } else {
+                limpiarCamposPaso1();
+            }
+        }
+
+        function limpiarCamposPaso1() {
+            ['regDesc', 'regCantEnviada', 'regBodega', 'regUbicacion', 'regUsuario', 'regFecha'].forEach(id => {
+                document.getElementById(id).value = '';
+            });
+        }
+
+        function guardarPaso1(e) {
+            e.preventDefault();
+            const item = {
+                id: Date.now(),
+                codigo: document.getElementById('regCodigo').value.trim().toUpperCase(),
+                documento: document.getElementById('regCargaLPN').value.trim().toUpperCase(),
+                tipoDoc: document.getElementById('regBusquedaTipo').value,
+                descripcion: document.getElementById('regDesc').value,
+                cantEnviada: parseFloat(document.getElementById('regCantEnviada').value || 0),
+                bodega: document.getElementById('regBodega').value,
+                ubicacion: document.getElementById('regUbicacion').value,
+                usuario: document.getElementById('regUsuario').value,
+                fecha: document.getElementById('regFecha').value,
+                cantDiferencia: 0,
+                costoUnitario: 0,
+                costoParcial: 0,
+                unidadMedida: '',
+                tipoDiferencia: 'Sobrante',
+                nroDirca: '',
+                errorPicking: ''
+            };
+
+            const bd1Info = bd1Map.get(item.codigo);
+            if (bd1Info) {
+                item.costoUnitario = bd1Info.costoUnitario;
+                item.unidadMedida = bd1Info.unidadMedida;
+            }
+
+            listaPaso1.push(item);
+            document.getElementById('formPaso1').reset();
+            limpiarCamposPaso1();
+            switchTab('tab4');
+        }
+
+        function renderPaso2() {
+            const tbody = document.getElementById('tablePaso2Body');
+            tbody.innerHTML = '';
+
+            if (listaPaso1.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="9" class="p-4 text-center text-gray-400">No hay registros pendientes en el Paso 2.</td></tr>`;
+                return;
+            }
+
+            listaPaso1.forEach((item, index) => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td class="p-2 font-semibold text-indigo-400">${item.codigo}</td>
+                        <td class="p-2">${item.documento}</td>
+                        <td class="p-2">
+                            <input type="number" value="${item.cantDiferencia}" onchange="actualizarDiferencia(${index}, this.value)" class="w-20 bg-gray-700 rounded p-1 text-white border border-gray-600"/>
+                        </td>
+                        <td class="p-2">$${item.costoUnitario.toFixed(2)}</td>
+                        <td class="p-2 font-bold ${item.costoParcial < 0 ? 'text-red-400' : 'text-emerald-400'}">$${item.costoParcial.toFixed(2)}</td>
+                        <td class="p-2">${item.unidadMedida || 'N/A'}</td>
+                        <td class="p-2">
+                            <select onchange="actualizarCampo(${index}, 'tipoDiferencia', this.value)" class="bg-gray-700 rounded p-1 text-white border border-gray-600">
+                                <option value="Sobrante" ${item.tipoDiferencia==='Sobrante'?'selected':''}>Sobrante</option>
+                                <option value="Faltante" ${item.tipoDiferencia==='Faltante'?'selected':''}>Faltante</option>
+                                <option value="Cruce Sobrante" ${item.tipoDiferencia==='Cruce Sobrante'?'selected':''}>Cruce Sobrante</option>
+                                <option value="Cruce Faltante" ${item.tipoDiferencia==='Cruce Faltante'?'selected':''}>Cruce Faltante</option>
+                            </select>
+                        </td>
+                        <td class="p-2">
+                            <input type="text" value="${item.nroDirca}" onchange="actualizarCampo(${index}, 'nroDirca', this.value)" placeholder="N° Dirca" class="w-24 bg-gray-700 rounded p-1 text-white border border-gray-600"/>
+                        </td>
+                        <td class="p-2">
+                            <select onchange="seleccionarErrorPicking(${index}, this.value)" class="bg-gray-700 rounded p-1 text-white border border-gray-600 font-bold">
+                                <option value="" disabled ${item.errorPicking===''?'selected':''}>-- Seleccione SI o NO --</option>
+                                <option value="NO" ${item.errorPicking==='NO'?'selected':''}>NO</option>
+                                <option value="SI" ${item.errorPicking==='SI'?'selected':''}>SI</option>
+                            </select>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function actualizarDiferencia(index, val) {
+            const cant = parseFloat(val || 0);
+            listaPaso1[index].cantDiferencia = cant;
+            listaPaso1[index].costoParcial = cant * listaPaso1[index].costoUnitario;
+            renderPaso2();
+        }
+
+        function actualizarCampo(index, campo, val) {
+            listaPaso1[index][campo] = val;
+        }
+
+        async function seleccionarErrorPicking(index, val) {
+            listaPaso1[index].errorPicking = val;
+            const item = listaPaso1.splice(index, 1)[0];
+            listaHistorial.push(item);
+
+            if (supabaseClient) {
+                await supabaseClient.from('historial_picking').insert([{
+                    id: item.id, codigo: item.codigo, documento: item.documento, tipo_doc: item.tipoDoc, descripcion: item.descripcion, cant_enviada: item.cantEnviada, bodega: item.bodega, ubicacion: item.ubicacion, usuario: item.usuario, fecha: item.fecha, cant_diferencia: item.cantDiferencia, costo_unitario: item.costoUnitario, costo_parcial: item.costoParcial, unidad_medida: item.unidadMedida, tipo_diferencia: item.tipoDiferencia, nro_dirca: item.nroDirca, error_picking: item.errorPicking
+                }]);
+            }
+
+            renderPaso2();
+        }
+
+        function exportarExcelPaso2() {
+            if (listaPaso1.length === 0) return alert('No hay registros activos para exportar.');
+            const worksheet = XLSX.utils.json_to_sheet(listaPaso1);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Registros_Hasta_Dirca");
+            XLSX.writeFile(workbook, "Registros_Hasta_Dirca.xlsx");
+        }
+
+        function renderHistorial() {
+            const tbody = document.getElementById('tableHistorialBody');
+            tbody.innerHTML = '';
+            listaHistorial.forEach((item, index) => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td class="p-2">${item.codigo}</td>
+                        <td class="p-2">${item.documento}</td>
+                        <td class="p-2">${item.bodega}</td>
+                        <td class="p-2">${item.ubicacion}</td>
+                        <td class="p-2">${item.usuario}</td>
+                        <td class="p-2">${item.cantDiferencia}</td>
+                        <td class="p-2">$${item.costoUnitario.toFixed(2)}</td>
+                        <td class="p-2 font-semibold ${item.costoParcial < 0 ? 'text-red-400' : 'text-emerald-400'}">$${item.costoParcial.toFixed(2)}</td>
+                        <td class="p-2">${item.unidadMedida}</td>
+                        <td class="p-2">${item.tipoDiferencia}</td>
+                        <td class="p-2">${item.nroDirca}</td>
+                        <td class="p-2 font-bold ${item.errorPicking==='SI'?'text-red-400':'text-emerald-400'}">${item.errorPicking}</td>
+                        <td class="p-2 text-center flex gap-1 justify-center">
+                            <button onclick="abrirModalEdicion(${index})" class="bg-amber-600 hover:bg-amber-500 text-white px-2 py-1 rounded"><i class="fa-solid fa-pen"></i></button>
+                            <button onclick="eliminarHistorial(${index})" class="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded"><i class="fa-solid fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function abrirModalEdicion(index) {
+            const item = listaHistorial[index];
+            document.getElementById('editHistIndex').value = index;
+            document.getElementById('editCodigo').value = item.codigo;
+            document.getElementById('editDocumento').value = item.documento;
+            document.getElementById('editBodega').value = item.bodega;
+            document.getElementById('editUbicacion').value = item.ubicacion;
+            document.getElementById('editUsuario').value = item.usuario;
+            document.getElementById('editCantDif').value = item.cantDiferencia;
+            document.getElementById('editCostoUnit').value = item.costoUnitario;
+            document.getElementById('editTipoDif').value = item.tipoDiferencia;
+            document.getElementById('editNroDirca').value = item.nroDirca;
+            document.getElementById('editErrorPicking').value = item.errorPicking;
+
+            document.getElementById('modalEditHistorial').classList.remove('hidden');
+        }
+
+        function closeEditModal() {
+            document.getElementById('modalEditHistorial').classList.add('hidden');
+        }
+
+        async function guardarEdicionHistorial() {
+            const index = document.getElementById('editHistIndex').value;
+            const item = listaHistorial[index];
+
+            item.codigo = document.getElementById('editCodigo').value.trim().toUpperCase();
+            item.documento = document.getElementById('editDocumento').value.trim().toUpperCase();
+            item.bodega = document.getElementById('editBodega').value.trim();
+            item.ubicacion = document.getElementById('editUbicacion').value.trim();
+            item.usuario = document.getElementById('editUsuario').value.trim();
+            item.cantDiferencia = parseFloat(document.getElementById('editCantDif').value || 0);
+            item.costoUnitario = parseFloat(document.getElementById('editCostoUnit').value || 0);
+            item.costoParcial = item.cantDiferencia * item.costoUnitario;
+            item.tipoDiferencia = document.getElementById('editTipoDif').value;
+            item.nroDirca = document.getElementById('editNroDirca').value.trim();
+            item.errorPicking = document.getElementById('editErrorPicking').value;
+
+            if (supabaseClient) {
+                await supabaseClient.from('historial_picking').update({
+                    codigo: item.codigo, documento: item.documento, bodega: item.bodega, ubicacion: item.ubicacion, usuario: item.usuario, cant_diferencia: item.cantDiferencia, costo_unitario: item.costoUnitario, costo_parcial: item.costoParcial, tipo_diferencia: item.tipoDiferencia, nro_dirca: item.nroDirca, error_picking: item.errorPicking
+                }).eq('id', item.id);
+            }
+
+            closeEditModal();
+            renderHistorial();
+        }
+
+        async function eliminarHistorial(index) {
+            if (confirm('¿Desea eliminar este registro del historial?')) {
+                const item = listaHistorial.splice(index, 1)[0];
+                if (supabaseClient) {
+                    await supabaseClient.from('historial_picking').delete().eq('id', item.id);
+                }
+                renderHistorial();
+            }
+        }
+
+        function exportarExcelHistorial() {
+            if(listaHistorial.length === 0) return alert('No hay datos en el historial para exportar.');
+            const worksheet = XLSX.utils.json_to_sheet(listaHistorial);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Historial_Picking");
+            XLSX.writeFile(workbook, "Historial_Registros_Picking.xlsx");
+        }
+
+        function renderDashboard() {
+            const filtroError = document.getElementById('dashFiltroError').value;
+            const datosFiltrados = listaHistorial.filter(item => {
+                if (filtroError === 'TODOS') return true;
+                return item.errorPicking === filtroError;
+            });
+
+            const userCounts = {};
+            datosFiltrados.forEach(d => {
+                const u = d.usuario || 'Desconocido';
+                userCounts[u] = (userCounts[u] || 0) + 1;
+            });
+
+            const bodegaCounts = {};
+            listaHistorial.forEach(d => {
+                const b = d.bodega || 'Sin Bodega';
+                bodegaCounts[b] = (bodegaCounts[b] || 0) + 1;
+            });
+
+            const ubiCounts = {};
+            listaHistorial.forEach(d => {
+                const rawUbi = d.ubicacion || 'N/A';
+                const prefijo = rawUbi.split('-')[0].trim().toUpperCase();
+                ubiCounts[prefijo] = (ubiCounts[prefijo] || 0) + 1;
+            });
+
+            const prodCostos = {};
+            listaHistorial.forEach(d => {
+                const p = d.codigo || 'S/C';
+                prodCostos[p] = (prodCostos[p] || 0) + d.costoParcial;
+            });
+
+            renderChart('chartUsuarios', 'bar', Object.keys(userCounts), Object.values(userCounts), 'Errores por Usuario', '#6366f1', chartUserInstance, (c) => chartUserInstance = c);
+            renderChart('chartBodegas', 'doughnut', Object.keys(bodegaCounts), Object.values(bodegaCounts), 'Registros por Bodega', ['#10b981', '#3b82f6', '#f59e0b', '#ec4899', '#8b5cf6'], chartBodegaInstance, (c) => chartBodegaInstance = c);
+            renderChart('chartUbicaciones', 'bar', Object.keys(ubiCounts), Object.values(ubiCounts), 'Registros por Ubicación', '#f59e0b', chartUbiInstance, (c) => chartUbiInstance = c);
+
+            const prodKeys = Object.keys(prodCostos);
+            const prodValues = Object.values(prodCostos);
+            const backgroundColors = prodValues.map(v => v < 0 ? '#ef4444' : '#10b981');
+            
+            renderChart('chartCostos', 'bar', prodKeys, prodValues, 'Costo Parcial ($)', backgroundColors, chartCostoInstance, (c) => chartCostoInstance = c);
+        }
+
+        function renderChart(canvasId, type, labels, data, label, colors, instanceRef, setInstance) {
+            if (instanceRef) instanceRef.destroy();
+
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            const newChart = new Chart(ctx, {
+                type: type,
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: label,
+                        data: data,
+                        backgroundColor: colors,
+                        borderColor: '#1f2937',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: '#9ca3af' } },
+                        datalabels: {
+                            anchor: type === 'doughnut' ? 'center' : 'end',
+                            align: type === 'doughnut' ? 'center' : 'top',
+                            color: '#ffffff',
+                            font: { weight: 'bold', size: 12 },
+                            formatter: (value) => value
+                        }
+                    },
+                    scales: type === 'bar' ? {
+                        x: { ticks: { color: '#9ca3af' }, grid: { color: '#374151' } },
+                        y: { ticks: { color: '#9ca3af' }, grid: { color: '#374151' } }
+                    } : {}
+                }
+            });
+            setInstance(newChart);
+        }
+    </script>
+</body>
+</html>
